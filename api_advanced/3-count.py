@@ -1,60 +1,68 @@
 #!/usr/bin/python3
-"""Doc"""
-import requests
+
+"""
+importing requests module
+"""
+
+from requests import get
 
 
-def count_words(subreddit, word_list, after="", words_count={}):
-    """"Doc"""
-    url = "https://www.reddit.com/r/{}/hot.json?limit=100" \
-        .format(subreddit)
-    header = {'User-Agent': 'Mozilla/5.0'}
-    param = {'after': after}
-    res = requests.get(url, headers=header, params=param)
+def count_words(subreddit, word_list=[], after=None, cleaned_dict=None):
+    """
+    function that queries the Reddit API, parses the title of all hot articles,
+    and prints a sorted count of given keywords (case-insensitive, delimited by
+    spaces. Javascript should count as javascript, but java should not).
+    """
 
-    if res.status_code != 200:
-        return
+    temp = []
 
-    json_res = res.json()  # chch
-    after = json_res.get('data').get('after')
-    has_next = after is not None
-    hot_titles = []
-    words = [word.lower() for word in word_list]
+    for i in word_list:
+        temp.append(i.casefold())
 
-    if len(words_count) == 0:
-        words_count = {word: 0 for word in words}
-    # print(words_count)
-    hot_articles = json_res.get('data').get('children')
-    [hot_titles.append(article.get('data').get('title'))
-     for article in hot_articles]
+    cleaned_word_list = list(dict.fromkeys(temp))
 
-    # loop through all titles
-    for i in range(len(hot_titles)):
-        # make the title as a list of word
-        # title_words = hot_titles[i].lower().split()
-        for title_word in hot_titles[i].lower().split():
-            for word in words:
-                if word.lower() == title_word:
-                    words_count[word] = words_count.get(word) + 1
-                # else:
-                #     # pass
-                #     print(word.lower() + " != " + title_word)
+    if cleaned_dict is None:
+        cleaned_dict = dict.fromkeys(cleaned_word_list)
 
-    if has_next:
-        # print(after + "\t" + str(has_next))
-        return count_words(subreddit, word_list, after, words_count)
-    else:
+    params = {'show': 'all'}
 
-        words_count = dict(filter(lambda item: item[1] != 0,
-                                  words_count.items()))
-        # their python version is not making people’s life easier
-        # words_count = {key: value for key, value in
-        #                sorted(words_count.items(),
-        #                       key=lambda item: item[1], reverse=True)}
+    if subreddit is None or not isinstance(subreddit, str):
+        return None
 
-        words_count = sorted(words_count.items(),
-                             key=lambda item: item[1],
-                             reverse=True)
+    user_agent = {'User-agent': 'Google Chrome Version 81.0.4044.129'}
 
-        for i in range(len(words_count)):
-            print("{}: {}".format(words_count[i][0],
-                                  words_count[i][1]))
+    url = 'https://www.reddit.com/r/{}/hot/.json?after={}'.format(subreddit,
+                                                                  after)
+
+    response = get(url, headers=user_agent, params=params)
+
+    if (response.status_code != 200):
+        return None
+
+    all_data = response.json()
+    raw1 = all_data.get('data').get('children')
+    after = all_data.get('data').get('after')
+
+    if after is None:
+        new = {k: v for k, v in cleaned_dict.items() if v is not None}
+
+        for k in sorted(new.items(), key=lambda x: (-x[1], x[0])):
+            print("{}: {}".format(k[0], k[1]))
+
+        return None
+
+    for i in raw1:
+        title = i.get('data').get('title')
+
+        split_title = title.split()
+
+        split_title2 = [i.casefold() for i in split_title]
+
+        for j in split_title2:
+            if j in cleaned_dict and cleaned_dict[j] is None:
+                cleaned_dict[j] = 1
+
+            elif j in cleaned_dict and cleaned_dict[j] is not None:
+                cleaned_dict[j] += 1
+
+    count_words(subreddit, word_list, after, cleaned_dict)
